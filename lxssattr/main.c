@@ -149,7 +149,7 @@ VOID __cdecl _tmain()
             //_tprintf(_T("LXSS Attributes:\n"));
             _tprintf(_T("Flags:                     %hu\n"), extendedAttr.Flags);
             _tprintf(_T("Version:                   %hu\n"), extendedAttr.Version);
-            _tprintf(_T("Mode:                      %lu (octal)\n"), extendedAttr.st_mode);
+            _tprintf(_T("Mode:                      %o (octal)\n"), extendedAttr.st_mode);
             _tprintf(_T("Ownership:                 UID: %lu, GID: %lu\n"), extendedAttr.st_uid, extendedAttr.st_gid);
             _tprintf(_T("Access:                    (0%o) %hs\n"), extendedAttr.st_mode & (S_IRWXU | S_IRWXG | S_IRWXO), lsperms(extendedAttr.st_mode));
             _tprintf(_T("Last status change:        %hs"), ctime(&extendedAttr.st_ctime));
