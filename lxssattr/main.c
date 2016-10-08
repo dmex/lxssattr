@@ -204,7 +204,7 @@ VOID DumpEaInformaton(
     valueBuffer = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, valueBufferLength + 1);
     
     // Make temporary copy of the EaValue
-    memcpy(
+    RtlCopyMemory(
         valueBuffer, 
         Info->EaName + (Info->EaNameLength + 1), 
         valueBufferLength
