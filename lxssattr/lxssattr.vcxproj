@@ -58,10 +58,10 @@
       <SDLCheck>true</SDLCheck>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <MinimalRebuild>false</MinimalRebuild>
-      <CallingConvention>StdCall</CallingConvention>
       <StringPooling>true</StringPooling>
       <PreprocessorDefinitions>_UNICODE;UNICODE;_WINDOWS;WIN64;DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <CallingConvention>StdCall</CallingConvention>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -101,6 +101,7 @@
     <ClCompile Include="utils.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="list.h" />
     <ClInclude Include="main.h" />
     <ClInclude Include="phnt.h" />
     <ClInclude Include="posix.h" />

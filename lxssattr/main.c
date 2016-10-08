@@ -17,7 +17,7 @@ typedef struct _LXSS_FILE_EXTENDED_ATTRIBUTES_V1
     ULONG64 st_ctime;    // Time of creation of file.
 } LXSS_FILE_EXTENDED_ATTRIBUTES_V1, *PLXSS_FILE_EXTENDED_ATTRIBUTES_V1;
 
-VOID __cdecl _tmain()
+void __cdecl _tmain()
 {
     NTSTATUS status;
     IO_STATUS_BLOCK isb;
@@ -28,16 +28,19 @@ VOID __cdecl _tmain()
     PFILE_FULL_EA_INFORMATION buffer = NULL;
     ULONG bufferLength = 0;
 
-    SetConsoleTitle(_T("lxssattr v1.0 by dmex - LXSS extended file attributes viewer"));
+    SetConsoleTitle(_T("lxssattr v1.1 by dmex - LXSS extended file attributes viewer"));
 
-    if (__argc < 2)
+    if (__argc != 2)
     {
         _tprintf(_T("Invalid arguments.\n"));
-        _gettch();
+        //_gettch();
         return;
     }
 
     _tprintf(_T("Querying: %s\n\n"), __targv[1]);
+
+    LxssLoadUsersFile();
+    LxssLoadGroupsFile();
 
     __try
     {
@@ -89,7 +92,7 @@ VOID __cdecl _tmain()
         //    __leave;
         //}
 
-        // Query the Extended Attribute length.
+        // Query the Extended Attribute length
         if (!NT_SUCCESS(status = NtQueryInformationFile(
             fileHandle,
             &isb,
@@ -102,7 +105,7 @@ VOID __cdecl _tmain()
             __leave;
         }
 
-        // Allocate memory for the Extended Attribute.
+        // Allocate memory for the Extended Attribute
         bufferLength = fileEaInfo.EaSize;
         buffer = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, bufferLength + 1);
 
@@ -112,7 +115,7 @@ VOID __cdecl _tmain()
             &isb,
             buffer, 
             bufferLength,
-            TRUE, // return only the first entry that is found.
+            TRUE, // return only the first entry that is found
             NULL, 
             0, 
             NULL, 
@@ -134,9 +137,6 @@ VOID __cdecl _tmain()
         {
             LXSS_FILE_EXTENDED_ATTRIBUTES_V1 extendedAttr;
 
-            // Debug helper
-            //DumpEaInformaton(buffer);
-
             // Make temporary copy of the structure
             RtlZeroMemory(&extendedAttr, sizeof(LXSS_FILE_EXTENDED_ATTRIBUTES_V1));
             RtlCopyMemory(
@@ -145,19 +145,26 @@ VOID __cdecl _tmain()
                 sizeof(LXSS_FILE_EXTENDED_ATTRIBUTES_V1)
                 );
 
-            // Dump structure
             //_tprintf(_T("LXSS Attributes:\n"));
             _tprintf(_T("Flags:                     %hu\n"), extendedAttr.Flags);
             _tprintf(_T("Version:                   %hu\n"), extendedAttr.Version);
             _tprintf(_T("Mode:                      %o (octal)\n"), extendedAttr.st_mode);
-            _tprintf(_T("Ownership:                 UID: %lu, GID: %lu\n"), extendedAttr.st_uid, extendedAttr.st_gid);
-            _tprintf(_T("Access:                    (0%o) %hs\n"), extendedAttr.st_mode & (S_IRWXU | S_IRWXG | S_IRWXO), lsperms(extendedAttr.st_mode));
-            _tprintf(_T("Last status change:        %hs"), ctime(&extendedAttr.st_ctime));
-            _tprintf(_T("Last file access:          %hs"), ctime(&extendedAttr.st_atime));
-            _tprintf(_T("Last file modification:    %hs"), ctime(&extendedAttr.st_mtime));
-            //_tprintf(_T("\n"));
+            _tprintf(_T("Ownership:                 Uid: (%lu / %s), Gid: (%lu / %s)\n"),
+                extendedAttr.st_uid, 
+                GetUserNameFromUid(extendedAttr.st_uid), 
+                extendedAttr.st_gid, 
+                GetGroupNameFromGid(extendedAttr.st_gid)
+                );
+            _tprintf(_T("Access:                    (0%o) %hs\n"),
+                extendedAttr.st_mode & (S_IRWXU | S_IRWXG | S_IRWXO), 
+                lsperms(extendedAttr.st_mode)
+                );        
+            _tprintf(_T("Last status change:        %s\n"), UnixStatTime(extendedAttr.st_ctime, extendedAttr.st_ctime_nsec));
+            _tprintf(_T("Last file access:          %s\n"), UnixStatTime(extendedAttr.st_atime, extendedAttr.st_atime_nsec));
+            _tprintf(_T("Last file modification:    %s\n"), UnixStatTime(extendedAttr.st_mtime, extendedAttr.st_mtime_nsec));
 
-            // TODO: Parse %localappdata%\lxss\rootfs\etc\passwd file for UID and GID information.
+            // Debug helper
+            //DumpEaInformaton(buffer);
         }
     }
     __finally
@@ -196,8 +203,8 @@ VOID DumpEaInformaton(
     valueBufferLength = Info->EaValueLength;
     valueBuffer = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, valueBufferLength + 1);
     
-    // Make temporary copy of the EA value
-    RtlCopyMemory(
+    // Make temporary copy of the EaValue
+    memcpy(
         valueBuffer, 
         Info->EaName + (Info->EaNameLength + 1), 
         valueBufferLength
@@ -213,6 +220,5 @@ VOID DumpEaInformaton(
     }
     _tprintf(_T("\n\n"));
 
-    // Free memory
     HeapFree(GetProcessHeap(), 0, valueBuffer);
 }
