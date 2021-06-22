@@ -96,12 +96,16 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="lxattrb.c" />
+    <ClCompile Include="lxuid.c" />
     <ClCompile Include="main.c" />
     <ClCompile Include="posix.c" />
     <ClCompile Include="utils.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="list.h" />
+    <ClInclude Include="lxattrb.h" />
+    <ClInclude Include="lxuid.h" />
     <ClInclude Include="main.h" />
     <ClInclude Include="phnt.h" />
     <ClInclude Include="posix.h" />
