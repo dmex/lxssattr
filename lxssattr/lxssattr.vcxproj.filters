@@ -24,6 +24,12 @@
     <ClCompile Include="utils.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="lxattrb.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="lxuid.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="phnt.h">
@@ -39,6 +45,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="list.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="lxattrb.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="lxuid.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

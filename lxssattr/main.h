@@ -19,6 +19,8 @@
 #include "phnt.h"
 #include "posix.h"
 #include "list.h"
+#include "lxattrb.h"
+#include "lxuid.h"
 
 // posix.c 
 PSTR lsperms(_In_ INT mode);
