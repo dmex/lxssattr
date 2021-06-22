@@ -1,6 +1,7 @@
 #include "main.h"
 
-void PrintLxattrb(PFILE_FULL_EA_INFORMATION buffer) {
+void PrintLxattrb(PFILE_FULL_EA_INFORMATION buffer)
+{
     LXSS_FILE_EXTENDED_ATTRIBUTES_V1 extendedAttr;
 
     // Make temporary copy of the structure

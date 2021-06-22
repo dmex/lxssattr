@@ -70,25 +70,11 @@ LXSS_FILE_INFO OpenLxssFileInfo(PWSTR filename)
     )))
     {
         if (status == STATUS_IO_REPARSE_TAG_NOT_HANDLED)
-            _tprintf(_T("[ERROR] NtOpenFile: 0x%x may be a WSL symbol link.\n"), status);
+            _tprintf(_T("[ERROR] NtOpenFile: 0x%x may be a WslFS symbol link\n"), status);
         else
             _tprintf(_T("[ERROR] NtOpenFile: 0x%x\n"), status);
         goto CleanupExit;
     }
-
-    //if ((fileHandle = CreateFile(
-    //    __targv[1],
-    //    FILE_GENERIC_READ, // includes the required FILE_READ_EA access_mask!
-    //    FILE_SHARE_READ,
-    //    NULL,
-    //    OPEN_EXISTING,
-    //    0,
-    //    NULL
-    //    )) == INVALID_HANDLE_VALUE)
-    //{
-    //    _tprintf(_T("[ERROR] CreateFile: 0x%x\n"), GetLastError());
-    //    __leave;
-    //}
 
     // Query the Extended Attribute length
     if (!NT_SUCCESS(status = NtQueryInformationFile(
@@ -113,7 +99,7 @@ LXSS_FILE_INFO OpenLxssFileInfo(PWSTR filename)
         &info.isb,
         info.buffer,
         info.bufferLength,
-        FALSE, // return only the first entry that is found
+        FALSE, // read all ea entries to buffer
         NULL,
         0,
         NULL,
@@ -121,7 +107,7 @@ LXSS_FILE_INFO OpenLxssFileInfo(PWSTR filename)
     )))
     {
         //if (status == STATUS_NO_MORE_EAS)
-        //if (status == STATUS_NO_EAS_ON_FILE)
+        if (status == STATUS_NO_EAS_ON_FILE) goto CleanupExit;
         _tprintf(_T("[ERROR] NtQueryEaFile: 0x%x\n"), status);
         goto CleanupExit;
     }
@@ -142,18 +128,20 @@ void CloseLxssFileInfo(LXSS_FILE_INFO *info)
         HeapFree(GetProcessHeap(), 0, info->buffer);
 }
 
-void __cdecl _tmain()
+int __cdecl _tmain()
 {
-    SetConsoleTitle(_T("lxssattr v1.3 by dmex and viruscamp - LXSS extended file attributes viewer and copier"));
+    SetConsoleTitle(_T("lxssattr v2.0 by dmex and viruscamp - LXSS extended file attributes viewer and copier"));
 
     if (__argc != 2 && __argc != 3)
     {
         _tprintf(_T("lxssattr FILENAME\n"));
-        _tprintf(_T("\tto show LXATTRB and $LXUID, $LXGID, $LXMOD\n"));
+        _tprintf(_T("\tto show LXATTRB(LxFS) and $LXUID, $LXGID, $LXMOD (WslFS)\n"));
         _tprintf(_T("lxssattr SOURCE_FILENAME TARGET_FILENAME\n"));
-        _tprintf(_T("\tto copy EaFile(include LXATTRB or $LXUID + $LXGID + $LXMOD ) from SOURCE_FILENAME to TARGET_FILENAME\n"));
-        return;
+        _tprintf(_T("\tto copy EaFile(includes LXATTRB or $LXUID + $LXGID + $LXMOD ) from SOURCE_FILENAME to TARGET_FILENAME\n"));
+        return EXIT_SUCCESS;
     }
+
+    int exit_code = EXIT_FAILURE;
 
     LxssLoadUsersFile();
     LxssLoadGroupsFile();
@@ -204,10 +192,9 @@ void __cdecl _tmain()
     }
     else
     {
-        // Debug helper
-        //DumpEaInformaton(buffer);
         if (__argc < 3)
         {
+            exit_code = EXIT_SUCCESS;
             goto CleanupExit;
         }
         _tprintf(_T("Copying to: %s\n\n"), __targv[2]);
@@ -222,13 +209,10 @@ void __cdecl _tmain()
             _tprintf(_T("[ERROR] EaFile is not empty for target file: %s\n"), __targv[2]);
             goto CleanupExit;
         }
-
-        int x = STATUS_EA_LIST_INCONSISTENT;
-
-        NTSTATUS status;
-
         NtClose(targetinfo.fileHandle);
         targetinfo.fileHandle = NULL;
+
+        NTSTATUS status;
         if (!NT_SUCCESS(status = NtOpenFile(
             &targetinfo.fileHandle,
             FILE_GENERIC_WRITE, // includes the required FILE_WRITE_EA access_mask!
@@ -253,6 +237,8 @@ void __cdecl _tmain()
             _tprintf(_T("[ERROR] NtSetEaFile: 0x%x\n"), status);
             goto CleanupExit;
         }
+        exit_code = EXIT_SUCCESS;
+        goto CleanupExit;
     }
 
 CleanupExit:
@@ -262,6 +248,8 @@ CleanupExit:
 
     //_tprintf(_T("Press any key to continue...\n"));
     //_gettch();
+
+    return exit_code;
 }
 
 VOID DumpEaInformaton(
