@@ -120,15 +120,15 @@ LXSS_FILE_INFO OpenLxssFileInfo(PWSTR filename)
     }
 
     // Allocate memory for the Extended Attribute
-    info.bufferLength = info.fileEaInfo.EaSize;
-    info.buffer = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, info.bufferLength + 1);
+    ULONG bufferLength = info.fileEaInfo.EaSize;
+    PFILE_FULL_EA_INFORMATION buffer = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, bufferLength + 1);
 
     // Query the Extended Attribute structure.
     if (!NT_SUCCESS(status = NtQueryEaFile(
         info.fileHandle,
         &info.isb,
-        info.buffer,
-        info.bufferLength,
+        buffer,
+        bufferLength,
         FALSE, // read all ea entries to buffer
         NULL,
         0,
@@ -139,7 +139,13 @@ LXSS_FILE_INFO OpenLxssFileInfo(PWSTR filename)
         //if (status == STATUS_NO_MORE_EAS)
         if (status == STATUS_NO_EAS_ON_FILE) goto CleanupExit;
         _tprintf(_T("[ERROR] NtQueryEaFile: 0x%x\n"), status);
+        HeapFree(GetProcessHeap(), 0, buffer);
         goto CleanupExit;
+    }
+    else
+    {
+        info.bufferLength = bufferLength;
+        info.buffer = buffer;
     }
 
 CleanupExit:
