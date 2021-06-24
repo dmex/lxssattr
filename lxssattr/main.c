@@ -278,8 +278,11 @@ int __cdecl _tmain()
 
     if (link_name != NULL)
     {
-        // TODO link_name should be UTF-8
+        // link_name must be UTF-8
+        UINT cp = GetConsoleOutputCP();
+        SetConsoleOutputCP(CP_UTF8);
         _tprintf(_T("Symlink:                   -> %S\n"), link_name);
+        SetConsoleOutputCP(cp);
     }
 
     if (pEaLxattrb == NULL && (pEaLxuid == NULL || pEaLxgid == NULL || pEaLxmod == NULL))
