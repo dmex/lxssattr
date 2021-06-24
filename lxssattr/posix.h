@@ -43,3 +43,10 @@
 #define	S_ISFIFO(m)	((m & 0170000) == 0010000)	/* fifo */
 #define	S_ISLNK(m)	((m & 0170000) == 0120000)	/* symbolic link */
 #define	S_ISSOCK(m)	((m & 0170000) == 0140000)	/* socket */
+
+#define MINORBITS             20
+#define MINORMASK             ((1U << MINORBITS) - 1)
+
+#define MAJOR(dev)            ((ULONG)((dev) >> MINORBITS))
+#define MINOR(dev)            ((ULONG)((dev)&MINORMASK))
+#define MKDEV(ma, mi)         (((ma) << MINORBITS) | (mi))
