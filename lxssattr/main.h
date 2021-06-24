@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <tchar.h>
 #include <time.h>
+#include <winioctl.h>
 
 // Include after SDK headers.
 #include "phnt.h"
@@ -23,6 +24,7 @@
 #include "lxuid.h"
 
 // posix.c 
+char filetypeletter(int mode);
 PSTR lsperms(_In_ INT mode);
 
 // main.c

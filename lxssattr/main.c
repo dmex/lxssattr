@@ -9,6 +9,7 @@ typedef struct _LXSS_FILE_INFO
     FILE_EA_INFORMATION fileEaInfo;
     PFILE_FULL_EA_INFORMATION buffer;
     ULONG bufferLength;
+    ULONG reparseTag;
 } LXSS_FILE_INFO;
 
 PFILE_FULL_EA_INFORMATION NextEaInfo(PFILE_FULL_EA_INFORMATION buffer)
@@ -32,6 +33,7 @@ LXSS_FILE_INFO LxssFileInfo()
     info.fileEaInfo.EaSize = 0;
     info.buffer = NULL;
     info.bufferLength = 0;
+    info.reparseTag = 0;
     return info;
 }
 
@@ -55,7 +57,7 @@ LXSS_FILE_INFO OpenLxssFileInfo(PWSTR filename)
     InitializeObjectAttributes(
         &info.oa,
         &info.fileName,
-        OBJ_CASE_INSENSITIVE,
+        OBJ_CASE_INSENSITIVE | OBJ_IGNORE_IMPERSONATED_DEVICEMAP, // donot use OBJ_DONT_REPARSE as it will stop at C:
         NULL,
         NULL
     );
@@ -69,11 +71,39 @@ LXSS_FILE_INFO OpenLxssFileInfo(PWSTR filename)
         FILE_SYNCHRONOUS_IO_NONALERT
     )))
     {
-        if (status == STATUS_IO_REPARSE_TAG_NOT_HANDLED)
-            _tprintf(_T("[ERROR] NtOpenFile: 0x%x may be a WslFS symbol link\n"), status);
+        if (status == STATUS_IO_REPARSE_TAG_NOT_HANDLED || status == STATUS_REPARSE_POINT_ENCOUNTERED)
+        {
+            // file is a REPARSE_POINT, maybe
+            // IO_REPARSE_TAG_LX_SYMLINK
+            // IO_REPARSE_TAG_LX_FIFO
+            // IO_REPARSE_TAG_LX_CHR
+            // IO_REPARSE_TAG_LX_BLK 
+            // IO_REPARSE_TAG_AF_UNIX
+            if (!NT_SUCCESS(status = NtOpenFile(
+                &info.fileHandle,
+                STANDARD_RIGHTS_READ | FILE_READ_ATTRIBUTES | FILE_READ_EA | FILE_READ_DATA | SYNCHRONIZE, // FILE_GENERIC_READ without FILE_READ_DATA
+                &info.oa,
+                &info.isb,
+                FILE_SHARE_READ,
+                FILE_SYNCHRONOUS_IO_NONALERT | FILE_OPEN_REPARSE_POINT
+            )))
+            {
+                _tprintf(_T("[ERROR] NtOpenFile: 0x%x , which is REPARSE_POINT, may be a WslFS symbol link\n"), status);
+                goto CleanupExit;
+            }
+            FILE_ATTRIBUTE_TAG_INFO file_attribute_tag_info;
+            if (!NT_SUCCESS(status = GetFileInformationByHandleEx(info.fileHandle, FileAttributeTagInfo, &file_attribute_tag_info, sizeof(FILE_ATTRIBUTE_TAG_INFO))))
+            {
+                _tprintf(_T("[ERROR] GetFileInformationByHandleEx: 0x%x\n"), status);
+                goto CleanupExit;
+            }
+            info.reparseTag = file_attribute_tag_info.ReparseTag;
+        }
         else
+        {
             _tprintf(_T("[ERROR] NtOpenFile: 0x%x\n"), status);
-        goto CleanupExit;
+            goto CleanupExit;
+        }
     }
 
     // Query the Extended Attribute length
@@ -90,15 +120,15 @@ LXSS_FILE_INFO OpenLxssFileInfo(PWSTR filename)
     }
 
     // Allocate memory for the Extended Attribute
-    info.bufferLength = info.fileEaInfo.EaSize;
-    info.buffer = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, info.bufferLength + 1);
+    ULONG bufferLength = info.fileEaInfo.EaSize;
+    PFILE_FULL_EA_INFORMATION buffer = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, bufferLength + 1);
 
     // Query the Extended Attribute structure.
     if (!NT_SUCCESS(status = NtQueryEaFile(
         info.fileHandle,
         &info.isb,
-        info.buffer,
-        info.bufferLength,
+        buffer,
+        bufferLength,
         FALSE, // read all ea entries to buffer
         NULL,
         0,
@@ -109,7 +139,13 @@ LXSS_FILE_INFO OpenLxssFileInfo(PWSTR filename)
         //if (status == STATUS_NO_MORE_EAS)
         if (status == STATUS_NO_EAS_ON_FILE) goto CleanupExit;
         _tprintf(_T("[ERROR] NtQueryEaFile: 0x%x\n"), status);
+        HeapFree(GetProcessHeap(), 0, buffer);
         goto CleanupExit;
+    }
+    else
+    {
+        info.bufferLength = bufferLength;
+        info.buffer = buffer;
     }
 
 CleanupExit:
@@ -128,12 +164,15 @@ void CloseLxssFileInfo(LXSS_FILE_INFO *info)
         HeapFree(GetProcessHeap(), 0, info->buffer);
 }
 
+#define _PROGRAM_DESC_ "lxssattr v2.1 by dmex and viruscamp - LXSS extended file attributes viewer and copier"
+
 int __cdecl _tmain()
 {
-    SetConsoleTitle(_T("lxssattr v2.0 by dmex and viruscamp - LXSS extended file attributes viewer and copier"));
+    SetConsoleTitle(_T(_PROGRAM_DESC_));
 
     if (__argc != 2 && __argc != 3)
     {
+        _tprintf(_T("%S\n"), _PROGRAM_DESC_);
         _tprintf(_T("lxssattr FILENAME\n"));
         _tprintf(_T("\tto show LXATTRB(LxFS) and $LXUID, $LXGID, $LXMOD (WslFS)\n"));
         _tprintf(_T("lxssattr SOURCE_FILENAME TARGET_FILENAME\n"));
@@ -157,6 +196,42 @@ int __cdecl _tmain()
         goto CleanupExit;
     }
 
+    if (srcinfo.reparseTag != 0)
+    {
+        PSTR tag_type = NULL;
+        switch (srcinfo.reparseTag) {
+        case IO_REPARSE_TAG_LX_SYMLINK: tag_type = "SYMLINK"; break;
+        case IO_REPARSE_TAG_LX_FIFO: tag_type = "FIFO"; break;
+        case IO_REPARSE_TAG_LX_CHR: tag_type = "CHR"; break;
+        case IO_REPARSE_TAG_LX_BLK: tag_type = "BLK"; break;
+        case IO_REPARSE_TAG_AF_UNIX: tag_type = "AF_UNIX"; break;
+        }
+        _tprintf(_T("WslFS reparse point:       %S\n"), tag_type);
+    }
+
+    CHAR link_name_buf[MAXIMUM_REPARSE_DATA_BUFFER_SIZE + 1];
+    CHAR* link_name = NULL; // UTF8 '\0' terminted
+
+    if (srcinfo.reparseTag == IO_REPARSE_TAG_LX_SYMLINK)
+    {
+        ULONG junk = 0;
+        if (!DeviceIoControl(srcinfo.fileHandle, FSCTL_GET_REPARSE_POINT, NULL, 0, link_name_buf, MAXIMUM_REPARSE_DATA_BUFFER_SIZE, &junk, NULL))
+        {
+            DWORD errorno = GetLastError();
+            _tprintf(_T("[ERROR] DeviceIoControl: 0x%x, Cannot read symlink from reparse_point data\n"), errorno);
+        }
+        else
+        {
+            PREPARSE_GUID_DATA_BUFFER reparse_buf = (PREPARSE_GUID_DATA_BUFFER)link_name_buf;
+            CHAR* reparse_data = (CHAR*)&reparse_buf->ReparseGuid;
+            if (reparse_buf->ReparseDataLength > 4)
+            {
+                reparse_data[reparse_buf->ReparseDataLength] = '\0';
+                link_name = reparse_data + 4;
+            }
+        }
+    }
+
     PFILE_FULL_EA_INFORMATION pEaLxattrb = NULL;
     PFILE_FULL_EA_INFORMATION pEaLxuid = NULL;
     PFILE_FULL_EA_INFORMATION pEaLxgid = NULL;
@@ -166,7 +241,21 @@ int __cdecl _tmain()
         if (_stricmp(NTFS_EX_ATTR_LXATTRB, eaInfo->EaName) == 0)
         {
             pEaLxattrb = eaInfo;
-            PrintLxattrb(eaInfo);
+            char filetype = PrintLxattrb(eaInfo);
+            if (filetype == 'l')
+            {
+                DWORD read_size = 0;
+                if (!ReadFile(srcinfo.fileHandle, link_name_buf, MAXIMUM_REPARSE_DATA_BUFFER_SIZE, &read_size, NULL))
+                {
+                    DWORD errorno = GetLastError();
+                    _tprintf(_T("[ERROR] ReadFile: 0x%x, Cannot read symlink from file content\n"), errorno);
+                }
+                else
+                {
+                    link_name_buf[read_size] = '\0';
+                    link_name = link_name_buf;
+                }
+            }
         }
         else if (_stricmp(NTFS_EX_ATTR_LXUID, eaInfo->EaName) == 0)
         {
@@ -183,6 +272,23 @@ int __cdecl _tmain()
             pEaLxmod = eaInfo;
             PrintLxmod(eaInfo);
         }
+        else if (_stricmp(NTFS_EX_ATTR_LXDEV, eaInfo->EaName) == 0)
+        {
+            PrintLxdev(eaInfo);
+        }
+        else
+        {
+            _tprintf(_T("Unknown EaName:            EaName: %S, EaValueLength: %1u\n"), eaInfo->EaName, eaInfo->EaValueLength);
+        }
+    }
+
+    if (link_name != NULL)
+    {
+        // link_name must be UTF-8
+        UINT cp = GetConsoleOutputCP();
+        SetConsoleOutputCP(CP_UTF8);
+        _tprintf(_T("Symlink:                   -> %S\n"), link_name);
+        SetConsoleOutputCP(cp);
     }
 
     if (pEaLxattrb == NULL && (pEaLxuid == NULL || pEaLxgid == NULL || pEaLxmod == NULL))

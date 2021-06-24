@@ -2,7 +2,7 @@
 
 // Copied from: http://stackoverflow.com/questions/10323060/printing-file-permissions-like-ls-l-using-stat2-in-c
 
-static int filetypeletter(int mode)
+char filetypeletter(int mode)
 {
     char c;
 
