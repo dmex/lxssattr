@@ -19,4 +19,4 @@ typedef struct _LXSS_FILE_EXTENDED_ATTRIBUTES_V1
     ULONG64 st_ctime;    // Time of creation of file.
 } LXSS_FILE_EXTENDED_ATTRIBUTES_V1, * PLXSS_FILE_EXTENDED_ATTRIBUTES_V1;
 
-void PrintLxattrb(PFILE_FULL_EA_INFORMATION buffer);
+char PrintLxattrb(PFILE_FULL_EA_INFORMATION buffer);
